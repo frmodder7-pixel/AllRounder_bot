@@ -25,6 +25,7 @@ from telegram.ext import (
     filters,
 )
 
+import ai
 import config
 import db
 from utils import mention
@@ -37,10 +38,22 @@ MEDALS = ["🥇", "🥈", "🥉", "🏅", "🎖️"]
 # Word-scramble game state: chat_id -> answer (lowercase). In-memory.
 _active_games = {}
 GAME_WORDS = [
-    "elephant", "computer", "rainbow", "cricket", "bollywood", "samosa",
-    "mountain", "diamond", "festival", "chocolate", "butterfly", "monsoon",
-    "treasure", "galaxy", "pyramid", "internet", "champion", "freedom",
-    "biryani", "harmony", "victory", "journey", "sunshine", "thunder",
+    # nature
+    "elephant", "rainbow", "mountain", "monsoon", "thunder", "sunshine",
+    "galaxy", "volcano", "glacier", "diamond", "emerald", "blossom",
+    "dolphin", "penguin", "leopard", "panther", "octopus", "squirrel",
+    # india / culture
+    "cricket", "bollywood", "samosa", "biryani", "festival", "diwali",
+    "rangoli", "monument", "tajmahal", "himalaya", "rickshaw", "chutney",
+    # tech
+    "computer", "internet", "keyboard", "software", "android", "browser",
+    "password", "database", "network", "battery", "satellite", "robotics",
+    # general
+    "treasure", "pyramid", "champion", "freedom", "harmony", "victory",
+    "journey", "captain", "library", "kitchen", "blanket", "umbrella",
+    "chocolate", "butterfly", "adventure", "mystery", "horizon", "whisper",
+    "gravity", "compass", "lantern", "carnival", "festival", "paradise",
+    "dynamite", "magnetic", "vacation", "midnight", "sandwich", "elephant",
 ]
 
 
@@ -78,6 +91,14 @@ VICHAAR = [
     "Apne aap par bharosa rakho — aap soch se zyada kar sakte ho. 🔥",
     "Muskuraahat free hai, par iski keemat anmol hai. Aaj khoob muskurao! 😄",
     "Har subah ek naya panna hai — aaj kuch accha likho. 📖",
+    "Galtiyan karo, par unse seekho — yahi asli taraqqi hai. 🌟",
+    "Aaj thoda aur try karo, kal ka 'main nahi kar saka' khatam ho jaayega. 💯",
+    "Doosron se mat compare karo — apni speed se badho. 🌱",
+    "Time aur tide kisi ka intezaar nahi karte — abhi shuru karo. ⏳",
+    "Sapne dekhna free hai, par poora karna mehnat maangta hai. Lag jao! 🚀",
+    "Aaj ka chhota kadam, kal ki badi kamyabi banega. 👣✨",
+    "Khud par invest karo — wahi return sabse bada hota hai. 📈",
+    "Jitni baar giro, utni baar utho. Haar tabhi hai jab uthna chhod do. 🥊",
 ]
 
 # Royalty-free night images (Unsplash).
@@ -92,13 +113,25 @@ GN_LINES = [
     "Sapne wahi sach hote hain jinke liye aap mehnat karte ho. Good night! 🌙",
     "Aaj jo accha hua uske liye shukar, jo bura hua use bhula do. 🌌",
     "Neend poori karo — kal phir ek naya mauka milega. ✨",
+    "Phone rakho, aankhein band karo, aur sukoon ki neend lo. 📵😴",
+    "Aaj ka din gaya, kal naye irade ke saath uthna. Shubh ratri! 🌙",
+    "Jitna ho sake utna kiya — ab rest ka time hai. 🛌",
+    "Raat ki shaanti mein kal ke sapne pak rahe hain. Good night! 🌠",
 ]
 
 
 async def _good_morning_job(context: ContextTypes.DEFAULT_TYPE):
+    # Fresh AI thought each day if Gemini is on, else a varied built-in one.
+    thought = await ai.ask(
+        "Write one short, original motivational 'thought of the day' in Hinglish "
+        "(Hindi in English letters). One line, uplifting, add an emoji. Return ONLY the line.",
+        max_tokens=80, temperature=1.0,
+    )
+    if not thought:
+        thought = random.choice(VICHAAR)
     caption = (
         f"🌅 <b>Good Morning, Doston!</b> ☀️\n\n"
-        f"💭 <b>Aaj ka Vichaar:</b>\n<i>{random.choice(VICHAAR)}</i>\n\n"
+        f"💭 <b>Aaj ka Vichaar:</b>\n<i>{thought}</i>\n\n"
         f"Aaj ka din shaandaar ho! 💛 {config.SIGNATURE}"
     )
     image = random.choice(GM_IMAGES)
@@ -118,9 +151,16 @@ async def _good_morning_job(context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- Good Night (nightly) ----------------
 async def _good_night_job(context: ContextTypes.DEFAULT_TYPE):
+    line = await ai.ask(
+        "Write one short, calming good-night line in Hinglish (Hindi in English letters). "
+        "One line, soothing, add an emoji. Return ONLY the line.",
+        max_tokens=80, temperature=1.0,
+    )
+    if not line:
+        line = random.choice(GN_LINES)
     caption = (
         f"🌙 <b>Good Night, Doston!</b> ✨\n\n"
-        f"<i>{random.choice(GN_LINES)}</i>\n\n"
+        f"<i>{line}</i>\n\n"
         f"Meethe sapne! 💤 {config.SIGNATURE}"
     )
     image = random.choice(GN_IMAGES)
@@ -149,10 +189,10 @@ async def _member_of_week_job(context: ContextTypes.DEFAULT_TYPE):
         db.add_points(chat_id, w["user_id"], w["name"], 50)
         text = (
             f"👑 <b>Member of the Week!</b> 🎉\n\n"
-            f"Is hafte ke superstar: {mention(w['user_id'], w['name'])} 🌟\n"
-            f"📨 <b>{w['count']}</b> messages is week!\n"
+            f"This week's superstar: {mention(w['user_id'], w['name'])} 🌟\n"
+            f"📨 <b>{w['count']}</b> messages this week!\n"
             f"🎁 Bonus: <b>+50 points</b>!\n\n"
-            f"Agle hafte ye taaj kiska? Compete karo! 🔥 {config.SIGNATURE}"
+            f"Who'll wear the crown next week? Compete! 🔥 {config.SIGNATURE}"
         )
         try:
             await context.bot.send_message(chat_id, text, parse_mode="HTML")
@@ -168,11 +208,11 @@ async def _daily_winners_job(context: ContextTypes.DEFAULT_TYPE):
         rows = db.top_today(chat_id, day, limit=5)
         if not rows:
             continue
-        lines = ["🏆 <b>Aaj ke Champions!</b> 🎉\n", "Aaj sabse zyada active members:\n"]
+        lines = ["🏆 <b>Today's Champions!</b> 🎉\n", "Most active members today:\n"]
         for i, r in enumerate(rows):
             medal = MEDALS[i] if i < len(MEDALS) else "•"
             lines.append(f"{medal} {mention(r['user_id'], r['name'])} — <b>{r['count']}</b> msgs")
-        lines.append(f"\nKal phir compete karo! 🔥 {config.SIGNATURE}")
+        lines.append(f"\nCompete again tomorrow! 🔥 {config.SIGNATURE}")
         try:
             await context.bot.send_message(chat_id, "\n".join(lines), parse_mode="HTML")
         except Exception:
@@ -196,7 +236,7 @@ async def _expire_game(context: ContextTypes.DEFAULT_TYPE):
         _active_games.pop(chat_id, None)
         try:
             await context.bot.send_message(
-                chat_id, f"⏰ Time up! Sahi shabd tha: <b>{answer.upper()}</b>", parse_mode="HTML"
+                chat_id, f"⏰ Time's up! The word was: <b>{answer.upper()}</b>", parse_mode="HTML"
             )
         except Exception:
             pass
@@ -205,17 +245,17 @@ async def _expire_game(context: ContextTypes.DEFAULT_TYPE):
 async def wordgame(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await update.message.reply_text("🎯 Word game sirf groups mein khelo!")
+        await update.message.reply_text("🎯 Play the word game inside groups!")
         return
     if chat.id in _active_games:
-        await update.message.reply_text("🎮 Ek game already chal raha hai — pehle wo solve karo!")
+        await update.message.reply_text("🎮 A game is already running — solve that one first!")
         return
     word = random.choice(GAME_WORDS)
     _active_games[chat.id] = word
     await update.message.reply_html(
         f"🎯 <b>Word Scramble!</b>\n\n"
-        f"Is shabd ko suljhaao 👇\n\n<b>{_scramble(word)}</b>\n\n"
-        f"Sabse pehle sahi answer type karo aur jeeto <b>15 points</b>! ⏱️ 60 sec"
+        f"Unscramble this word 👇\n\n<b>{_scramble(word)}</b>\n\n"
+        f"First to type the correct answer wins <b>15 points</b>! ⏱️ 60 sec"
     )
     context.job_queue.run_once(_expire_game, 60, data=(chat.id, word))
 
@@ -238,8 +278,8 @@ async def activity_counter(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _active_games.pop(chat.id, None)
         total = db.add_points(chat.id, user.id, user.first_name, 15)
         await msg.reply_html(
-            f"🎉 Sahi jawaab! {mention(user.id, user.first_name)} ne <b>{answer.upper()}</b> "
-            f"sabse pehle solve kiya!\n➕ <b>15 points</b> (total: <b>{total}</b>) 🏆"
+            f"🎉 Correct! {mention(user.id, user.first_name)} solved <b>{answer.upper()}</b> first!\n"
+            f"➕ <b>15 points</b> (total: <b>{total}</b>) 🏆"
         )
 
 
@@ -258,23 +298,23 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await update.message.reply_text("🎁 Daily bonus sirf groups mein milta hai!")
+        await update.message.reply_text("🎁 The daily bonus is only available inside groups!")
         return
     already, streak = db.claim_daily(chat.id, user.id, _today_str(), _yesterday_str())
     if already:
         await update.message.reply_html(
-            f"⏳ {mention(user.id, user.first_name)}, aaj ka bonus le liya hai!\n"
-            f"Kal phir aana. Streak: <b>{streak}</b> {_streak_emoji(streak)}"
+            f"⏳ {mention(user.id, user.first_name)}, you've already claimed today's bonus!\n"
+            f"Come back tomorrow. Streak: <b>{streak}</b> {_streak_emoji(streak)}"
         )
         return
     # Reward grows with streak: 10 base + 5 per streak day, capped.
     reward = min(10 + streak * 5, 100)
     total = db.add_points(chat.id, user.id, user.first_name, reward)
     await update.message.reply_html(
-        f"🎁 {mention(user.id, user.first_name)} ne daily bonus claim kiya!\n"
+        f"🎁 {mention(user.id, user.first_name)} claimed the daily bonus!\n"
         f"➕ <b>{reward} points</b> (total: <b>{total}</b>)\n"
-        f"🔥 Streak: <b>{streak} din</b> {_streak_emoji(streak)}\n"
-        f"<i>Roz aao, streak badhao, zyada points kamao!</i>"
+        f"🔥 Streak: <b>{streak} days</b> {_streak_emoji(streak)}\n"
+        f"<i>Come back daily to grow your streak and earn more!</i>"
     )
 
 
@@ -282,30 +322,30 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await update.message.reply_text("🏆 Leaderboard sirf groups mein chalta hai!")
+        await update.message.reply_text("🏆 The leaderboard only works inside groups!")
         return
     rows = db.top_alltime(chat.id, limit=10)
     if not rows:
-        await update.message.reply_text("📊 Abhi koi data nahi. Chatting shuru karo points kamao! 🔥")
+        await update.message.reply_text("📊 No data yet. Start chatting to earn points! 🔥")
         return
     lines = [f"🏆 <b>{chat.title} — Top Members</b> (all-time)\n"]
     for i, r in enumerate(rows):
         medal = MEDALS[i] if i < len(MEDALS) else f"{i+1}."
         lines.append(f"{medal} {mention(r['user_id'], r['name'])} — <b>{r['total']}</b> pts")
-    lines.append("\nHar message = 1 point. Top par pahuncho! 💪")
+    lines.append("\nEvery message = 1 point. Climb to the top! 💪")
     await update.message.reply_html("\n".join(lines))
 
 
 async def today_board(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await update.message.reply_text("📊 Ye sirf groups mein chalta hai!")
+        await update.message.reply_text("📊 This only works inside groups!")
         return
     rows = db.top_today(chat.id, _today_str(), limit=5)
     if not rows:
-        await update.message.reply_text("📊 Aaj abhi tak koi active nahi. Pehle bano! 🥇")
+        await update.message.reply_text("📊 No activity yet today. Be the first! 🥇")
         return
-    lines = ["📊 <b>Aaj ke Top 5 (ab tak)</b>\n"]
+    lines = ["📊 <b>Today's Top 5 (so far)</b>\n"]
     for i, r in enumerate(rows):
         medal = MEDALS[i] if i < len(MEDALS) else "•"
         lines.append(f"{medal} {mention(r['user_id'], r['name'])} — <b>{r['count']}</b> msgs")
@@ -316,15 +356,15 @@ async def my_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await update.message.reply_text("🎯 Rank sirf groups mein milti hai!")
+        await update.message.reply_text("🎯 Ranks are only available inside groups!")
         return
     total, rank = db.my_rank(chat.id, user.id)
     if not rank:
-        await update.message.reply_text("🤷 Abhi aapke points nahi. Chatting karo aur rank banao! 🔥")
+        await update.message.reply_text("🤷 You have no points yet. Start chatting to rank up! 🔥")
         return
     await update.message.reply_html(
         f"🎯 {mention(user.id, user.first_name)}\n"
-        f"🏆 Points: <b>{total}</b>\n📊 Rank: <b>#{rank}</b> is group mein!"
+        f"🏆 Points: <b>{total}</b>\n📊 Rank: <b>#{rank}</b> in this group!"
     )
 
 

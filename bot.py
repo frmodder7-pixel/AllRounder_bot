@@ -52,7 +52,10 @@ async def _post_init(app: Application):
         BotCommand("warn", "Warn a user (admin)"),
         BotCommand("joke", "Hinglish joke 😂"),
         BotCommand("shayari", "Desi shayari 🌹"),
+        BotCommand("roast", "Playful roast 🔥"),
+        BotCommand("compliment", "Sweet compliment 💖"),
         BotCommand("cricket", "Live cricket scores 🏏"),
+        BotCommand("score", "Match by team 🔍"),
         BotCommand("leaderboard", "Group Top-10 🏆"),
         BotCommand("rank", "Your rank & points 🎯"),
         BotCommand("daily", "Claim daily bonus 🎁"),
@@ -79,6 +82,7 @@ def main():
         )
 
     db.init_db()
+    log.info("Database backend: %s", "PostgreSQL (PERMANENT ✅)" if db._USE_PG else "SQLite (temporary — resets on redeploy)")
 
     # Start keep-alive server in the background.
     threading.Thread(target=run_web, daemon=True).start()

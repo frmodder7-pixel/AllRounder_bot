@@ -2,7 +2,6 @@
 owner-only tools (/stats, /broadcast)."""
 import asyncio
 
-import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatType
 from telegram.ext import (
@@ -14,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 
+import ai
 import config
 import db
 
@@ -32,9 +32,12 @@ HELP_PAGES = {
               "• <code>/antilink on|off</code>, <code>/antiflood on|off</code>\n"
               "<i>Every action shows a reason.</i>"),
     "fun": ("🎮 Fun (Desi Style 🇮🇳)",
-            "• <code>/joke</code> — Hinglish jokes 😂\n"
+            "• <code>/joke</code> — Hinglish jokes (AI = unlimited!) 😂\n"
             "• <code>/shayari</code> — desi shayari 🌹\n"
+            "• <code>/roast</code> — playful roast 🔥 (reply to target)\n"
+            "• <code>/compliment</code> — sweet compliment 💖\n"
             "• <code>/cricket</code> — live scores 🏏\n"
+            "• <code>/score team</code> — match by team 🔍\n"
             "• <code>/quote /fact /meme</code>\n"
             "• <code>/dice /dart /coin</code>\n"
             "• <code>/8ball question</code>\n"
@@ -42,15 +45,15 @@ HELP_PAGES = {
             "<i>Plus auto festival wishes 🎊 (Diwali, Holi, Eid…)</i>"),
     "engage": ("🏆 Daily, Games & Ranks",
                "• <code>/leaderboard</code> (or /top) — all-time Top-10 🏆\n"
-               "• <code>/today</code> — aaj ke Top-5 🔥\n"
+               "• <code>/today</code> — today's Top-5 🔥\n"
                "• <code>/rank</code> — your points & rank 🎯\n"
                "• <code>/daily</code> — daily bonus + streak 🎁🔥\n"
                "• <code>/wordgame</code> — scramble game, +15 pts 🎮\n\n"
-               "<i>Har message = 1 point!</i>\n"
-               "🌅 Subah 7 baje — Good Morning + Aaj ka Vichaar\n"
-               "🌙 Raat 11 baje — Good Night image\n"
-               "🏆 Raat 10 baje — 'Aaj ke Champions'\n"
-               "👑 Sunday 8 baje — Member of the Week (+50 pts)!"),
+               "<i>Every message = 1 point!</i>\n"
+               "🌅 7:00 AM — Good Morning + Aaj ka Vichaar\n"
+               "🌙 11:00 PM — Good Night\n"
+               "🏆 10:00 PM — Today's Champions\n"
+               "👑 Sunday 8:00 PM — Member of the Week (+50 pts)!"),
     "tools": ("🛠️ Tools",
               "• <code>/remind 10m text</code>\n"
               "• <code>/save /get /notes /clear</code>\n"
@@ -123,24 +126,8 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------- AI brain (optional) ----------------
-async def _ask_gemini(prompt: str) -> str:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={config.GEMINI_API_KEY}"
-    )
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 400, "temperature": 0.7},
-    }
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as c:
-        r = await c.post(url, json=payload)
-        r.raise_for_status()
-        data = r.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-
 async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not config.GEMINI_API_KEY:
+    if not ai.is_enabled():
         return
     msg = update.effective_message
     if not msg or not msg.text:
@@ -158,17 +145,17 @@ async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         return
     await context.bot.send_chat_action(update.effective_chat.id, "typing")
-    try:
-        prompt = (
-            "You are All Rounder Bot by BLITEX, a helpful, friendly Telegram assistant for "
-            "Indian users. Reply in a warm, casual Hinglish style (Hindi written in English "
-            "letters, mixed with English) — like a friendly desi dost. Keep it clear and brief. "
-            "When giving advice or a decision, include a short reason. "
-            f"User says: {question}"
-        )
-        answer = await _ask_gemini(prompt)
+    prompt = (
+        "You are All Rounder Bot by BLITEX, a helpful, friendly Telegram assistant for "
+        "Indian users. Reply in a warm, casual Hinglish style (Hindi written in English "
+        "letters, mixed with English) — like a friendly desi dost. Keep it clear and brief. "
+        "When giving advice or a decision, include a short reason. "
+        f"User says: {question}"
+    )
+    answer = await ai.ask(prompt)
+    if answer:
         await msg.reply_text(answer)
-    except Exception:
+    else:
         await msg.reply_text("🤖 My AI brain is busy right now — try again in a moment.")
 
 
