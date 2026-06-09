@@ -36,6 +36,26 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS chats (
                 chat_id INTEGER PRIMARY KEY, title TEXT
             );
+            CREATE TABLE IF NOT EXISTS activity (
+                chat_id INTEGER, user_id INTEGER, day TEXT,
+                count INTEGER DEFAULT 0, name TEXT,
+                PRIMARY KEY (chat_id, user_id, day)
+            );
+            CREATE TABLE IF NOT EXISTS points (
+                chat_id INTEGER, user_id INTEGER,
+                total INTEGER DEFAULT 0, name TEXT,
+                PRIMARY KEY (chat_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS daily (
+                chat_id INTEGER, user_id INTEGER,
+                last_day TEXT, streak INTEGER DEFAULT 0,
+                PRIMARY KEY (chat_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS weekly (
+                chat_id INTEGER, user_id INTEGER, week TEXT,
+                count INTEGER DEFAULT 0, name TEXT,
+                PRIMARY KEY (chat_id, user_id, week)
+            );
             """
         )
         _conn.commit()
@@ -176,3 +196,123 @@ def stats():
         u = _conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
         g = _conn.execute("SELECT COUNT(*) c FROM chats").fetchone()["c"]
     return u, g
+
+
+# ---------- activity & points (leaderboard) ----------
+def bump_activity(chat_id: int, user_id: int, day: str, name: str) -> None:
+    """+1 to today's message count and +1 to all-time points."""
+    with _lock:
+        _conn.execute(
+            "INSERT INTO activity (chat_id, user_id, day, count, name) VALUES (?,?,?,1,?) "
+            "ON CONFLICT(chat_id, user_id, day) DO UPDATE SET count=count+1, name=excluded.name",
+            (chat_id, user_id, day, name),
+        )
+        _conn.execute(
+            "INSERT INTO points (chat_id, user_id, total, name) VALUES (?,?,1,?) "
+            "ON CONFLICT(chat_id, user_id) DO UPDATE SET total=total+1, name=excluded.name",
+            (chat_id, user_id, name),
+        )
+        _conn.commit()
+
+
+def add_points(chat_id: int, user_id: int, name: str, amount: int) -> int:
+    """Add an arbitrary number of points (games, daily bonus). Returns new total."""
+    with _lock:
+        _conn.execute(
+            "INSERT INTO points (chat_id, user_id, total, name) VALUES (?,?,?,?) "
+            "ON CONFLICT(chat_id, user_id) DO UPDATE SET total=total+?, name=excluded.name",
+            (chat_id, user_id, amount, name, amount),
+        )
+        row = _conn.execute(
+            "SELECT total FROM points WHERE chat_id=? AND user_id=?", (chat_id, user_id)
+        ).fetchone()
+        _conn.commit()
+    return row["total"] if row else amount
+
+
+def bump_weekly(chat_id: int, user_id: int, week: str, name: str) -> None:
+    with _lock:
+        _conn.execute(
+            "INSERT INTO weekly (chat_id, user_id, week, count, name) VALUES (?,?,?,1,?) "
+            "ON CONFLICT(chat_id, user_id, week) DO UPDATE SET count=count+1, name=excluded.name",
+            (chat_id, user_id, week, name),
+        )
+        _conn.commit()
+
+
+def top_weekly(chat_id: int, week: str, limit: int = 1):
+    with _lock:
+        return _conn.execute(
+            "SELECT user_id, name, count FROM weekly WHERE chat_id=? AND week=? "
+            "ORDER BY count DESC LIMIT ?", (chat_id, week, limit)
+        ).fetchall()
+
+
+def claim_daily(chat_id: int, user_id: int, today: str, yesterday: str):
+    """Handle a /daily claim. Returns (already_claimed, streak)."""
+    with _lock:
+        row = _conn.execute(
+            "SELECT last_day, streak FROM daily WHERE chat_id=? AND user_id=?",
+            (chat_id, user_id),
+        ).fetchone()
+        if row and row["last_day"] == today:
+            return True, row["streak"]
+        if row and row["last_day"] == yesterday:
+            streak = row["streak"] + 1
+        else:
+            streak = 1
+        _conn.execute(
+            "INSERT INTO daily (chat_id, user_id, last_day, streak) VALUES (?,?,?,?) "
+            "ON CONFLICT(chat_id, user_id) DO UPDATE SET last_day=excluded.last_day, streak=excluded.streak",
+            (chat_id, user_id, today, streak),
+        )
+        _conn.commit()
+    return False, streak
+
+
+def weeks_active_chats(week: str):
+    with _lock:
+        rows = _conn.execute(
+            "SELECT DISTINCT chat_id FROM weekly WHERE week=?", (week,)
+        ).fetchall()
+    return [r["chat_id"] for r in rows]
+
+
+def top_today(chat_id: int, day: str, limit: int = 5):
+    with _lock:
+        return _conn.execute(
+            "SELECT user_id, name, count FROM activity WHERE chat_id=? AND day=? "
+            "ORDER BY count DESC LIMIT ?", (chat_id, day, limit)
+        ).fetchall()
+
+
+def top_alltime(chat_id: int, limit: int = 10):
+    with _lock:
+        return _conn.execute(
+            "SELECT user_id, name, total FROM points WHERE chat_id=? "
+            "ORDER BY total DESC LIMIT ?", (chat_id, limit)
+        ).fetchall()
+
+
+def my_rank(chat_id: int, user_id: int):
+    """Return (total_points, rank) for a user in a chat, or (0, None)."""
+    with _lock:
+        row = _conn.execute(
+            "SELECT total FROM points WHERE chat_id=? AND user_id=?", (chat_id, user_id)
+        ).fetchone()
+        if not row:
+            return 0, None
+        rank = _conn.execute(
+            "SELECT COUNT(*) c FROM points WHERE chat_id=? AND total > ?",
+            (chat_id, row["total"]),
+        ).fetchone()["c"] + 1
+    return row["total"], rank
+
+
+def all_active_chats(day: str):
+    """Chat ids that had any activity on a given day (for the nightly job)."""
+    with _lock:
+        rows = _conn.execute(
+            "SELECT DISTINCT chat_id FROM activity WHERE day=?", (day,)
+        ).fetchall()
+    return [r["chat_id"] for r in rows]

@@ -79,6 +79,14 @@ async def cricket(update: Update, context: ContextTypes.DEFAULT_TYPE):
         d = await _get_json(
             f"https://api.cricapi.com/v1/currentMatches?apikey={config.CRICKET_API_KEY}&offset=0"
         )
+        # Handle API-level errors clearly (bad key, daily limit reached, etc.)
+        if d.get("status") != "success":
+            reason = d.get("status") or "unknown error"
+            await update.message.reply_html(
+                f"🏏 Cricket API ne kaha: <i>{reason}</i>\n"
+                "(Ho sakta hai aaj ki free limit khatam ho gayi ho — kal phir try karo.)"
+            )
+            return
         matches = [m for m in d.get("data", []) if m.get("matchStarted") and not m.get("matchEnded")]
         if not matches:
             matches = d.get("data", [])[:3]

@@ -40,6 +40,17 @@ HELP_PAGES = {
             "• <code>/8ball question</code>\n"
             "• <code>/quiz</code> — trivia poll\n"
             "<i>Plus auto festival wishes 🎊 (Diwali, Holi, Eid…)</i>"),
+    "engage": ("🏆 Daily, Games & Ranks",
+               "• <code>/leaderboard</code> (or /top) — all-time Top-10 🏆\n"
+               "• <code>/today</code> — aaj ke Top-5 🔥\n"
+               "• <code>/rank</code> — your points & rank 🎯\n"
+               "• <code>/daily</code> — daily bonus + streak 🎁🔥\n"
+               "• <code>/wordgame</code> — scramble game, +15 pts 🎮\n\n"
+               "<i>Har message = 1 point!</i>\n"
+               "🌅 Subah 7 baje — Good Morning + Aaj ka Vichaar\n"
+               "🌙 Raat 11 baje — Good Night image\n"
+               "🏆 Raat 10 baje — 'Aaj ke Champions'\n"
+               "👑 Sunday 8 baje — Member of the Week (+50 pts)!"),
     "tools": ("🛠️ Tools",
               "• <code>/remind 10m text</code>\n"
               "• <code>/save /get /notes /clear</code>\n"
@@ -58,7 +69,8 @@ def _menu_keyboard():
          InlineKeyboardButton("🛡️ Admin", callback_data="help:admin")],
         [InlineKeyboardButton("🎮 Fun", callback_data="help:fun"),
          InlineKeyboardButton("🛠️ Tools", callback_data="help:tools")],
-        [InlineKeyboardButton("🧠 AI Brain", callback_data="help:ai")],
+        [InlineKeyboardButton("🏆 Daily & Ranks", callback_data="help:engage"),
+         InlineKeyboardButton("🧠 AI Brain", callback_data="help:ai")],
     ]
     return InlineKeyboardMarkup(btns)
 

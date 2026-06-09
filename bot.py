@@ -13,6 +13,7 @@ import config
 import db
 import admin
 import admin_panel
+import engagement
 import extra
 import festivals
 import fun
@@ -52,6 +53,10 @@ async def _post_init(app: Application):
         BotCommand("joke", "Hinglish joke 😂"),
         BotCommand("shayari", "Desi shayari 🌹"),
         BotCommand("cricket", "Live cricket scores 🏏"),
+        BotCommand("leaderboard", "Group Top-10 🏆"),
+        BotCommand("rank", "Your rank & points 🎯"),
+        BotCommand("daily", "Claim daily bonus 🎁"),
+        BotCommand("wordgame", "Word scramble game 🎮"),
         BotCommand("meme", "Random meme"),
         BotCommand("quote", "Inspiring quote"),
         BotCommand("quiz", "Trivia quiz"),
@@ -88,6 +93,7 @@ def main():
     fun.register(application)
     greetings.register(application)
     festivals.register(application)
+    engagement.register(application)
 
     log.info("All Rounder Bot is starting…")
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
