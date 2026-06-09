@@ -31,11 +31,15 @@ HELP_PAGES = {
               "• <code>/pin /unpin /del /purge</code>\n"
               "• <code>/antilink on|off</code>, <code>/antiflood on|off</code>\n"
               "<i>Every action shows a reason.</i>"),
-    "fun": ("🎮 Fun",
-            "• <code>/joke /quote /fact /meme</code>\n"
+    "fun": ("🎮 Fun (Desi Style 🇮🇳)",
+            "• <code>/joke</code> — Hinglish jokes 😂\n"
+            "• <code>/shayari</code> — desi shayari 🌹\n"
+            "• <code>/cricket</code> — live scores 🏏\n"
+            "• <code>/quote /fact /meme</code>\n"
             "• <code>/dice /dart /coin</code>\n"
             "• <code>/8ball question</code>\n"
-            "• <code>/quiz</code> — trivia poll"),
+            "• <code>/quiz</code> — trivia poll\n"
+            "<i>Plus auto festival wishes 🎊 (Diwali, Holi, Eid…)</i>"),
     "tools": ("🛠️ Tools",
               "• <code>/remind 10m text</code>\n"
               "• <code>/save /get /notes /clear</code>\n"
@@ -73,9 +77,10 @@ HOME_TEXT = (
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db.track_user(update.effective_user.id)
+    u = update.effective_user
+    db.track_user(u.id, u.full_name, u.username)
     if update.effective_chat.type != ChatType.PRIVATE:
-        db.track_chat(update.effective_chat.id)
+        db.track_chat(update.effective_chat.id, update.effective_chat.title)
     me = await context.bot.get_me()
     add_url = f"https://t.me/{me.username}?startgroup=true"
     kb = InlineKeyboardMarkup([
@@ -143,8 +148,10 @@ async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, "typing")
     try:
         prompt = (
-            "You are All Rounder Bot by BLITEX, a helpful, friendly Telegram assistant. "
-            "Answer clearly and briefly. When giving advice or a decision, include a short reason. "
+            "You are All Rounder Bot by BLITEX, a helpful, friendly Telegram assistant for "
+            "Indian users. Reply in a warm, casual Hinglish style (Hindi written in English "
+            "letters, mixed with English) — like a friendly desi dost. Keep it clear and brief. "
+            "When giving advice or a decision, include a short reason. "
             f"User says: {question}"
         )
         answer = await _ask_gemini(prompt)

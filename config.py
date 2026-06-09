@@ -21,6 +21,9 @@ OWNER_ID = _int("OWNER_ID")
 # If set, the bot gains an AI brain (mention it or reply to it).
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
+# Optional: free key from https://cricketdata.org for live /cricket scores.
+CRICKET_API_KEY = os.environ.get("CRICKET_API_KEY", "").strip()
+
 # Render injects PORT; the keep-alive web server binds to it.
 PORT = _int("PORT", 10000)
 

@@ -30,8 +30,12 @@ def init_db() -> None:
                 chat_id INTEGER, name TEXT, content TEXT,
                 PRIMARY KEY (chat_id, name)
             );
-            CREATE TABLE IF NOT EXISTS users  (user_id INTEGER PRIMARY KEY);
-            CREATE TABLE IF NOT EXISTS chats  (chat_id INTEGER PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY, name TEXT, username TEXT
+            );
+            CREATE TABLE IF NOT EXISTS chats (
+                chat_id INTEGER PRIMARY KEY, title TEXT
+            );
             """
         )
         _conn.commit()
@@ -125,15 +129,25 @@ def del_note(chat_id: int, name: str) -> None:
 
 
 # ---------- tracking ----------
-def track_user(user_id: int) -> None:
+def track_user(user_id: int, name: str = None, username: str = None) -> None:
     with _lock:
-        _conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+        _conn.execute(
+            "INSERT INTO users (user_id, name, username) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "
+            "name=COALESCE(excluded.name, users.name), "
+            "username=COALESCE(excluded.username, users.username)",
+            (user_id, name, username),
+        )
         _conn.commit()
 
 
-def track_chat(chat_id: int) -> None:
+def track_chat(chat_id: int, title: str = None) -> None:
     with _lock:
-        _conn.execute("INSERT OR IGNORE INTO chats (chat_id) VALUES (?)", (chat_id,))
+        _conn.execute(
+            "INSERT INTO chats (chat_id, title) VALUES (?,?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET title=COALESCE(excluded.title, chats.title)",
+            (chat_id, title),
+        )
         _conn.commit()
 
 
@@ -141,6 +155,20 @@ def all_user_ids():
     with _lock:
         rows = _conn.execute("SELECT user_id FROM users").fetchall()
     return [r["user_id"] for r in rows]
+
+
+def list_users(limit: int = 30):
+    with _lock:
+        return _conn.execute(
+            "SELECT user_id, name, username FROM users ORDER BY rowid DESC LIMIT ?", (limit,)
+        ).fetchall()
+
+
+def list_chats(limit: int = 30):
+    with _lock:
+        return _conn.execute(
+            "SELECT chat_id, title FROM chats ORDER BY rowid DESC LIMIT ?", (limit,)
+        ).fetchall()
 
 
 def stats():

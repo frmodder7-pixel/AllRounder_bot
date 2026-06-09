@@ -12,7 +12,9 @@ from telegram.ext import Application
 import config
 import db
 import admin
+import admin_panel
 import extra
+import festivals
 import fun
 import greetings
 import tools
@@ -42,11 +44,14 @@ async def _post_init(app: Application):
     await app.bot.set_my_commands([
         BotCommand("start", "Start the bot"),
         BotCommand("help", "Show all commands"),
+        BotCommand("admin", "Owner dashboard"),
         BotCommand("ban", "Ban a user (admin)"),
         BotCommand("kick", "Kick a user (admin)"),
         BotCommand("mute", "Mute a user (admin)"),
         BotCommand("warn", "Warn a user (admin)"),
-        BotCommand("joke", "Random joke"),
+        BotCommand("joke", "Hinglish joke 😂"),
+        BotCommand("shayari", "Desi shayari 🌹"),
+        BotCommand("cricket", "Live cricket scores 🏏"),
         BotCommand("meme", "Random meme"),
         BotCommand("quote", "Inspiring quote"),
         BotCommand("quiz", "Trivia quiz"),
@@ -77,10 +82,12 @@ def main():
 
     # Order matters only for the same handler group; registration order is fine.
     extra.register(application)
+    admin_panel.register(application)
     admin.register(application)
     tools.register(application)
     fun.register(application)
     greetings.register(application)
+    festivals.register(application)
 
     log.info("All Rounder Bot is starting…")
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)

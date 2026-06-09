@@ -11,9 +11,32 @@ import config
 _TIMEOUT = httpx.Timeout(10.0)
 
 EIGHTBALL = [
-    "It is certain. ✅", "Without a doubt. 💯", "Yes, definitely. 👍",
-    "Most likely. 🙂", "Ask again later. ⏳", "Better not tell you now. 🤐",
-    "Don't count on it. 🚫", "My reply is no. ❌", "Very doubtful. 😬",
+    "Haan, pakka! ✅", "Bilkul sahi! 💯", "Haan ji, definitely. 👍",
+    "Lagta toh hai. 🙂", "Baad mein poocho. ⏳", "Abhi nahi bata sakta. 🤐",
+    "Na baba na. 🚫", "Mera jawab hai NO. ❌", "Bahut shaq hai. 😬",
+]
+
+# Desi Hinglish jokes — Hindi written in English letters 😂
+HINGLISH_JOKES = [
+    "Pappu: Doctor sahab, mujhe bhoolne ki bimari hai.\nDoctor: Kab se?\nPappu: Kab se kya? 🤔😂",
+    "Teacher: Bada hokar kya banoge?\nStudent: Sir, aapke jaisa nahi banunga, itna toh pakka hai! 😎😂",
+    "Wife: Suno ji, aaj khaana main banaungi.\nHusband: Theek hai, main Swiggy se mangwa leta hoon backup ke liye. 🍔😆",
+    "Santa: Yaar meri ghadi kho gayi.\nBanta: Dhoond le.\nSanta: Time nahi hai! ⏰😂",
+    "Ladka: I love you.\nLadki: Pehle apni Maggi toh time pe bana le, pyaar baad mein dekhenge. 🍜😂",
+    "Boss: Tum late kyun aaye?\nEmployee: Sir, TV pe likha tha — 'Ghar baithe kamao', toh bas... 📺😂",
+    "Exam mein 3 ghante: pen chala nahi.\nGhar aate hi WhatsApp pe 200 message: ek second mein. 📱😂",
+    "Mummy: Beta padhai kar.\nMain: Kar raha hoon.\nMummy: Phone mein kya hai?\nMain: ...padhai ka mood. 😬😂",
+    "Dost: Tu itna intelligent kaise hai?\nMain: Bachpan mein Cerelac nahi, Boost piya tha. 💪😂",
+    "Bijli wale: Aaj light nahi aayegi.\nMain: Koi na, vibe candle-light dinner wali kar lenge. 🕯️😂",
+]
+
+# Bonus: desi shayari 🌹
+SHAYARIS = [
+    "Zindagi mein do cheezein kabhi mat todna —\nek bharosa, aur doosra Maggi banate waqt ka time. 🍜❤️",
+    "Chai ki pyaali aur tumhari yaad,\ndono ke bina subah adhuri lagti hai. ☕✨",
+    "Log kehte hain mehnat karo,\nhum kehte hain pehle thodi neend poori karo. 😴💪",
+    "Dil toh bachcha hai ji,\nisliye har baar biryani dekhke macha leta hai. 🍛😄",
+    "Dosti tumse hai, isliye life set hai,\nwarna duniya toh bas WiFi ke peeche bhaag rahi hai. 📶❤️",
 ]
 
 
@@ -25,11 +48,56 @@ async def _get_json(url):
 
 
 async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # 70% desi Hinglish joke, 30% English from API — full desi vibe 😂
+    if random.random() < 0.7:
+        await update.message.reply_text(f"😂 {random.choice(HINGLISH_JOKES)}")
+        return
     try:
         d = await _get_json("https://official-joke-api.appspot.com/random_joke")
         await update.message.reply_text(f"😂 {d['setup']}\n\n👉 {d['punchline']}")
     except Exception:
-        await update.message.reply_text("😅 Couldn't fetch a joke right now. Try again!")
+        # If the API fails, never leave the user hanging — desi joke saves the day
+        await update.message.reply_text(f"😂 {random.choice(HINGLISH_JOKES)}")
+
+
+async def shayari(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"🌹 {random.choice(SHAYARIS)}")
+
+
+async def cricket(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Live cricket scores. Uses CricketData.org if a free key is configured,
+    otherwise points the user to live scores. Accurate, no fake data."""
+    if not config.CRICKET_API_KEY:
+        await update.message.reply_html(
+            "🏏 <b>Live cricket scores</b> ka feature ready hai!\n"
+            "Bas ek <b>free</b> API key chahiye (https://cricketdata.org).\n"
+            "BLITEX usse <code>CRICKET_API_KEY</code> mein daal de — phir live scores yahin milenge! 🔥\n\n"
+            "Abhi ke liye: <a href=\"https://www.cricbuzz.com/cricket-match/live-scores\">Cricbuzz live scores</a> 📺"
+        )
+        return
+    try:
+        d = await _get_json(
+            f"https://api.cricapi.com/v1/currentMatches?apikey={config.CRICKET_API_KEY}&offset=0"
+        )
+        matches = [m for m in d.get("data", []) if m.get("matchStarted") and not m.get("matchEnded")]
+        if not matches:
+            matches = d.get("data", [])[:3]
+        if not matches:
+            await update.message.reply_text("🏏 Abhi koi live match nahi hai.")
+            return
+        lines = ["🏏 <b>Cricket Scores</b>\n"]
+        for m in matches[:5]:
+            lines.append(f"• <b>{m.get('name', 'Match')}</b>")
+            for s in m.get("score", []):
+                lines.append(f"   {s.get('inning', '')}: {s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)")
+            if m.get("status"):
+                lines.append(f"   <i>{m['status']}</i>")
+        await update.message.reply_html("\n".join(lines))
+    except Exception:
+        await update.message.reply_html(
+            "🏏 Score laane mein dikkat aa rahi hai. Thodi der baad try karo, "
+            "ya <a href=\"https://www.cricbuzz.com/cricket-match/live-scores\">Cricbuzz</a> dekho. 📺"
+        )
 
 
 async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,6 +169,8 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def register(app: Application):
     app.add_handler(CommandHandler("joke", joke))
+    app.add_handler(CommandHandler("shayari", shayari))
+    app.add_handler(CommandHandler("cricket", cricket))
     app.add_handler(CommandHandler("quote", quote))
     app.add_handler(CommandHandler("fact", fact))
     app.add_handler(CommandHandler("meme", meme))
