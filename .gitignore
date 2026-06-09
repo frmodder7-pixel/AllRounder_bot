@@ -1,0 +1,5 @@
+# Ignore local env + python cruft
+.env
+__pycache__/
+*.pyc
+bot.db
