@@ -53,6 +53,7 @@ async def _post_init(app: Application):
         BotCommand("ask", "Ask the AI"),
         BotCommand("imagine", "Generate an AI image"),
         BotCommand("sticker", "Generate AI sticker"),
+        BotCommand("voice", "Generate voice note"),
         BotCommand("caption", "AI captions"),
         BotCommand("rewrite", "Rewrite with AI"),
         BotCommand("summary", "Summarize recent group chat"),

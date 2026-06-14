@@ -2,6 +2,7 @@
 to generate unlimited fresh content. Returns None on any failure so callers
 can fall back to built-in content."""
 import logging
+import re
 import time
 from collections import defaultdict, deque
 from base64 import b64decode, b64encode
@@ -13,7 +14,8 @@ import httpx
 import config
 
 log = logging.getLogger("allrounder.ai")
-_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+_TEXT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+_IMAGE_BASE_URL = "https://generativelanguage.googleapis.com/v1/models"
 _LAST_ERROR: Optional[str] = None
 _ACTIVE_MODEL: Optional[str] = None
 _RATE_LIMITS = defaultdict(deque)
@@ -73,8 +75,16 @@ def _image_model_name() -> str:
     return _clean_model(config.GEMINI_IMAGE_MODEL)
 
 
-def _url(model: str) -> str:
-    return f"{_BASE_URL}/{quote(model, safe='-_.')}:generateContent"
+def _image_candidate_models() -> list[str]:
+    models = [_image_model_name()]
+    models.extend(_clean_model(model) for model in config.GEMINI_IMAGE_FALLBACK_MODELS)
+    seen = set()
+    return [model for model in models if model and not (model in seen or seen.add(model))]
+
+
+def _url(model: str, *, image: bool = False) -> str:
+    base = _IMAGE_BASE_URL if image else _TEXT_BASE_URL
+    return f"{base}/{quote(model, safe='-_.')}:generateContent"
 
 
 def _extract_text(data: dict) -> Optional[str]:
@@ -83,8 +93,17 @@ def _extract_text(data: dict) -> Optional[str]:
         parts = content.get("parts") or []
         text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
         if text.strip():
-            return text.strip()
+            return _clean_text_response(text)
     return None
+
+
+def _clean_text_response(text: str) -> str:
+    text = re.sub(r"[ \t]+\n", "\n", text or "")
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = re.sub(r"(?i)(all\s+rounder\s+bot\s+by\s+blit(?:ex)?\s*){2,}", "All Rounder Bot by BLITEX", text)
+    text = re.sub(r"(?i)\s*(?:[-—]\s*)?(all\s+rounder\s+bot\s+)?by\s+blit(?:ex)?\s*$", "", text).strip()
+    text = re.sub(r"(?i)\s*(?:[-—]\s*)?all\s+rounder\s+bot\s*$", "", text).strip()
+    return text
 
 
 def _api_error(response: httpx.Response) -> str:
@@ -177,28 +196,34 @@ async def generate_image(prompt: str) -> Optional[tuple[bytes, str]]:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
     }
-    model = _image_model_name()
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
-            r = await c.post(_url(model), headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-        image = _extract_image(data)
-        if image:
-            _remember_error("")
-            return image
-        _remember_error("image response had no image data")
-        log.warning("Gemini image request returned no image: model=%s", model)
-    except httpx.HTTPStatusError as exc:
-        error = f"HTTP {exc.response.status_code}: {_api_error(exc.response)}"
-        _remember_error(error)
-        log.warning("Gemini image request failed: model=%s %s", model, error)
-    except httpx.TimeoutException:
-        _remember_error("image request timed out")
-        log.warning("Gemini image request timed out: model=%s", model)
-    except Exception as exc:
-        _remember_error(type(exc).__name__)
-        log.exception("Gemini image request failed unexpectedly: model=%s", model)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
+        for model in _image_candidate_models():
+            try:
+                r = await c.post(_url(model, image=True), headers=headers, json=payload)
+                r.raise_for_status()
+                data = r.json()
+                image = _extract_image(data)
+                if image:
+                    _remember_error("")
+                    return image
+                _remember_error("image response had no image data")
+                log.warning("Gemini image request returned no image: model=%s", model)
+            except httpx.HTTPStatusError as exc:
+                message = _api_error(exc.response)
+                error = f"HTTP {exc.response.status_code}: {message}"
+                _remember_error(error)
+                log.warning("Gemini image request failed: model=%s %s", model, error)
+                if _should_try_next_model(exc.response.status_code, message):
+                    continue
+                return None
+            except httpx.TimeoutException:
+                _remember_error("image request timed out")
+                log.warning("Gemini image request timed out: model=%s", model)
+                return None
+            except Exception as exc:
+                _remember_error(type(exc).__name__)
+                log.exception("Gemini image request failed unexpectedly: model=%s", model)
+                return None
     return None
 
 
@@ -220,26 +245,32 @@ async def edit_image(prompt: str, image_bytes: bytes, mime_type: str = "image/jp
         }],
         "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
     }
-    model = _image_model_name()
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
-            r = await c.post(_url(model), headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-        image = _extract_image(data)
-        if image:
-            _remember_error("")
-            return image
-        _remember_error("edited image response had no image data")
-        log.warning("Gemini image edit returned no image: model=%s", model)
-    except httpx.HTTPStatusError as exc:
-        error = f"HTTP {exc.response.status_code}: {_api_error(exc.response)}"
-        _remember_error(error)
-        log.warning("Gemini image edit failed: model=%s %s", model, error)
-    except httpx.TimeoutException:
-        _remember_error("image edit request timed out")
-        log.warning("Gemini image edit timed out: model=%s", model)
-    except Exception as exc:
-        _remember_error(type(exc).__name__)
-        log.exception("Gemini image edit failed unexpectedly: model=%s", model)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
+        for model in _image_candidate_models():
+            try:
+                r = await c.post(_url(model, image=True), headers=headers, json=payload)
+                r.raise_for_status()
+                data = r.json()
+                image = _extract_image(data)
+                if image:
+                    _remember_error("")
+                    return image
+                _remember_error("edited image response had no image data")
+                log.warning("Gemini image edit returned no image: model=%s", model)
+            except httpx.HTTPStatusError as exc:
+                message = _api_error(exc.response)
+                error = f"HTTP {exc.response.status_code}: {message}"
+                _remember_error(error)
+                log.warning("Gemini image edit failed: model=%s %s", model, error)
+                if _should_try_next_model(exc.response.status_code, message):
+                    continue
+                return None
+            except httpx.TimeoutException:
+                _remember_error("image edit request timed out")
+                log.warning("Gemini image edit timed out: model=%s", model)
+                return None
+            except Exception as exc:
+                _remember_error(type(exc).__name__)
+                log.exception("Gemini image edit failed unexpectedly: model=%s", model)
+                return None
     return None

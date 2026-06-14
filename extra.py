@@ -68,7 +68,8 @@ HELP_PAGES = {
            "Mention me or reply to my message and I'll answer intelligently.\n"
            "• <code>/ask</code> — ask directly\n"
            "• <code>/imagine</code>, <code>/editimage</code> — generate/edit AI images\n"
-           "• <code>/sticker</code> — generate sticker-style WebP\n"
+           "• <code>/sticker</code> — AI sticker or replied-text sticker\n"
+           "• <code>/voice</code> — generate a voice note from text\n"
            "• <code>/caption /bio /rewrite</code> — premium writing tools\n"
            "• <code>/announce /pollidea /logoidea /stickeridea</code>\n"
            "• <code>/summary</code> — summarize recent group chat\n"
@@ -198,8 +199,9 @@ async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = (
         "You are All Rounder Bot by BLITEX, a helpful, friendly Telegram assistant for "
         "Indian users. Reply in a warm, casual Hinglish style (Hindi written in English "
-        "letters, mixed with English) — like a friendly desi dost. Keep it clear and brief. "
-        "When giving advice or a decision, include a short reason. "
+        "letters, mixed with English), like a friendly desi dost. Keep it complete, clear, "
+        "and brief: 1-4 sentences. Do not append signatures, bot branding, or 'by BLITEX'. "
+        "Never stop mid-sentence. When giving advice or a decision, include a short reason. "
         f"User says: {question}"
     )
     answer = await ai.ask(prompt)

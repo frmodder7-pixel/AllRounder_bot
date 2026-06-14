@@ -87,6 +87,7 @@ _SCHEMA = [
 def init_db() -> None:
     for stmt in _SCHEMA:
         _run(stmt)
+    _run("UPDATE settings SET value='mentions' WHERE key='ai_mode' AND value='on'")
 
 
 # ---------- settings ----------

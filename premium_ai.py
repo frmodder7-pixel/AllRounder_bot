@@ -1,9 +1,11 @@
 """Premium AI commands: image generation, writing tools, captions, polls."""
+import asyncio
 from io import BytesIO
+from textwrap import wrap
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 import ai
 import config
@@ -12,6 +14,16 @@ from utils import admin_only
 
 def _args(context: ContextTypes.DEFAULT_TYPE) -> str:
     return " ".join(context.args or []).strip()
+
+
+def _voice_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    text = _args(context)
+    if text:
+        return text
+    src = update.message.reply_to_message
+    if src:
+        return (src.text or src.caption or "").strip()
+    return ""
 
 
 async def _ai_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str, max_tokens: int = 450, temperature: float = 0.8):
@@ -101,10 +113,128 @@ def _sticker_webp(image_bytes: bytes) -> BytesIO:
     return out
 
 
+def _font(size: int, bold: bool = False):
+    names = (
+        "arialbd.ttf", "Arial Bold.ttf", "DejaVuSans-Bold.ttf",
+    ) if bold else (
+        "arial.ttf", "Arial.ttf", "DejaVuSans.ttf",
+    )
+    for name in names:
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _fit_lines(text: str, font, max_width: int, max_lines: int = 7) -> list[str]:
+    words = text.replace("\n", " ").split()
+    lines = []
+    current = ""
+    probe = Image.new("RGBA", (10, 10))
+    draw = ImageDraw.Draw(probe)
+    for word in words:
+        trial = f"{current} {word}".strip()
+        if draw.textbbox((0, 0), trial, font=font)[2] <= max_width:
+            current = trial
+        else:
+            if current:
+                lines.append(current)
+            current = word
+            if len(lines) >= max_lines:
+                break
+    if current and len(lines) < max_lines:
+        lines.append(current)
+    if len(lines) == max_lines and len(" ".join(words)) > len(" ".join(lines)):
+        lines[-1] = lines[-1].rstrip(".") + "..."
+    return lines
+
+
+async def _profile_photo_bytes(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bytes | None:
+    try:
+        photos = await context.bot.get_user_profile_photos(user_id, limit=1)
+        if not photos.total_count or not photos.photos:
+            return None
+        file = await context.bot.get_file(photos.photos[0][-1].file_id)
+        return bytes(await file.download_as_bytearray())
+    except Exception:
+        return None
+
+
+def _circle_avatar(photo_bytes: bytes | None, initials: str) -> Image.Image:
+    size = 124
+    avatar = Image.new("RGBA", (size, size), (67, 97, 238, 255))
+    if photo_bytes:
+        try:
+            img = Image.open(BytesIO(photo_bytes)).convert("RGBA")
+            img = img.resize((size, size), Image.Resampling.LANCZOS)
+            avatar = img
+        except Exception:
+            pass
+    mask = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((0, 0, size - 1, size - 1), fill=255)
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    out.paste(avatar, (0, 0), mask)
+    if not photo_bytes:
+        d = ImageDraw.Draw(out)
+        f = _font(48, bold=True)
+        label = initials[:2].upper() or "?"
+        box = d.textbbox((0, 0), label, font=f)
+        d.text(((size - (box[2] - box[0])) // 2, (size - (box[3] - box[1])) // 2 - 4), label, fill="white", font=f)
+    return out
+
+
+async def _quote_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    src = update.message.reply_to_message
+    if not src or not (src.text or src.caption):
+        return False
+    user = src.from_user
+    text = (src.text or src.caption or "").strip()
+    photo = await _profile_photo_bytes(context, user.id) if user else None
+    name = (user.first_name if user else "User")[:32]
+    canvas = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    card = Image.new("RGBA", (468, 420), (255, 255, 255, 242))
+    mask = Image.new("L", card.size, 0)
+    md = ImageDraw.Draw(mask)
+    md.rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=42, fill=255)
+    canvas.paste(card, (22, 46), mask)
+    draw = ImageDraw.Draw(canvas)
+    draw.rounded_rectangle((22, 46, 490, 466), radius=42, outline=(42, 52, 65, 255), width=4)
+    avatar = _circle_avatar(photo, name)
+    canvas.alpha_composite(avatar, (54, 76))
+    name_font = _font(34, bold=True)
+    text_font = _font(31, bold=True)
+    small_font = _font(20)
+    draw.text((198, 90), name, fill=(20, 27, 38, 255), font=name_font)
+    draw.text((198, 132), "said", fill=(101, 116, 139, 255), font=small_font)
+    lines = _fit_lines(text, text_font, 398, max_lines=7)
+    y = 225
+    for line in lines:
+        box = draw.textbbox((0, 0), line, font=text_font)
+        draw.text(((512 - (box[2] - box[0])) // 2, y), line, fill=(15, 23, 42, 255), font=text_font)
+        y += 42
+    draw.text((54, 426), f"{config.BRAND}", fill=(100, 116, 139, 255), font=small_font)
+    out = BytesIO()
+    canvas.save(out, format="WEBP", lossless=True, quality=92, method=6)
+    out.seek(0)
+    out.name = "quote_sticker.webp"
+    try:
+        await context.bot.send_sticker(update.effective_chat.id, sticker=out)
+    except Exception:
+        out.seek(0)
+        await update.message.reply_document(document=out, caption="Text sticker generated as WebP.")
+    return True
+
+
 async def sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = _args(context)
+    if update.message.reply_to_message and (update.message.reply_to_message.text or update.message.reply_to_message.caption):
+        await context.bot.send_chat_action(update.effective_chat.id, "choose_sticker")
+        await _quote_sticker(update, context)
+        return
     if not prompt:
-        await update.message.reply_text("Usage: /sticker cute desi chai cup smiling")
+        await update.message.reply_text("Usage: /sticker cute desi chai cup smiling, or reply to text with /sticker")
         return
     if not ai.is_enabled():
         await update.message.reply_text("Sticker generation needs GEMINI_API_KEY.")
@@ -127,6 +257,36 @@ async def sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         webp = _sticker_webp(image[0])
         await update.message.reply_document(document=webp, caption="Sticker generated as WebP.")
+
+
+async def voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = _voice_text(update, context)
+    if not text:
+        await update.message.reply_text("Usage: /voice your text, or reply to a text with /voice")
+        return
+    if len(text) > 900:
+        text = text[:900]
+    await context.bot.send_chat_action(update.effective_chat.id, "record_voice")
+    try:
+        from gtts import gTTS
+        mp3 = BytesIO()
+        await asyncio.to_thread(lambda: gTTS(text=text, lang="hi", tld="co.in").write_to_fp(mp3))
+        mp3.seek(0)
+        try:
+            from pydub import AudioSegment
+            ogg = BytesIO()
+            audio = await asyncio.to_thread(lambda: AudioSegment.from_file(mp3, format="mp3"))
+            await asyncio.to_thread(lambda: audio.export(ogg, format="ogg", codec="libopus"))
+            ogg.seek(0)
+            ogg.name = "voice.ogg"
+            await context.bot.send_voice(update.effective_chat.id, voice=ogg)
+            return
+        except Exception:
+            mp3.seek(0)
+            mp3.name = "voice.mp3"
+            await update.message.reply_audio(audio=mp3, title="Voice")
+    except Exception as exc:
+        await update.message.reply_text(f"Couldn't generate voice right now: {type(exc).__name__}")
 
 
 async def caption(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,6 +395,7 @@ def register(app: Application):
     app.add_handler(CommandHandler("imagine", imagine))
     app.add_handler(CommandHandler("editimage", editimage))
     app.add_handler(CommandHandler("sticker", sticker))
+    app.add_handler(CommandHandler("voice", voice))
     app.add_handler(CommandHandler("caption", caption))
     app.add_handler(CommandHandler("bio", bio))
     app.add_handler(CommandHandler("rewrite", rewrite))

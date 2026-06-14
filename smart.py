@@ -77,7 +77,8 @@ async def ask_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, "typing")
     prompt = (
         "You are All Rounder Bot by BLITEX. Answer clearly in friendly Hinglish unless the "
-        "user asks for another language. Keep it useful, brief, and safe.\n\n"
+        "user asks for another language. Keep it useful, complete, brief, and safe. "
+        "Do not append signatures, bot branding, or 'by BLITEX'. Never stop mid-sentence.\n\n"
         f"Question: {question[:2500]}"
     )
     answer = await ai.ask(prompt, max_tokens=500, temperature=0.7)

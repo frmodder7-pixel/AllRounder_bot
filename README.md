@@ -28,7 +28,7 @@ A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and 
 
 **🧠 AI Brain** (optional) — mention the bot or reply to it for smart answers.
 - `/ask`, `/summary`, `/ai on|mentions|privateonly|off|chatty`, `/aimod on|off`
-- `/imagine`, `/editimage`, `/sticker`, `/caption`, `/bio`, `/rewrite`, `/announce`, `/pollidea`, `/logoidea`, `/stickeridea`
+- `/imagine`, `/editimage`, `/sticker`, `/voice`, `/caption`, `/bio`, `/rewrite`, `/announce`, `/pollidea`, `/logoidea`, `/stickeridea`
 - `/setrules`, `/rules`, `/faqadd`, `/faq`, `/faqauto`
 
 **🪙 Profiles & Economy**
@@ -64,7 +64,8 @@ A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and 
    | `OWNER_ID` | *(your numeric id — send `/id` to the bot)* |
    | `GEMINI_API_KEY` | *(optional, from https://aistudio.google.com/app/apikey)* |
    | `GEMINI_MODEL` | `gemini-2.5-flash` *(optional)* |
-   | `GEMINI_IMAGE_MODEL` | `gemini-2.5-flash-image-preview` *(optional)* |
+   | `GEMINI_IMAGE_MODEL` | `gemini-2.0-flash-preview-image-generation` *(optional)* |
+   | `GEMINI_IMAGE_FALLBACK_MODELS` | `gemini-2.5-flash-image,imagen-4.0-generate-001` *(optional)* |
    | `GEMINI_FALLBACK_MODELS` | `gemini-1.5-flash` *(optional)* |
    | `WARN_LIMIT` | `3` |
 5. Review and deploy the staged variable changes, then restart or redeploy the service.
@@ -99,7 +100,8 @@ Without `DATABASE_URL`, the bot still works using SQLite on the Railway containe
    | `OWNER_ID` | *(your numeric id — send `/id` to the bot)* |
    | `GEMINI_API_KEY` | *(optional, from https://aistudio.google.com/app/apikey)* |
    | `GEMINI_MODEL` | `gemini-2.5-flash` *(optional)* |
-   | `GEMINI_IMAGE_MODEL` | `gemini-2.5-flash-image-preview` *(optional)* |
+   | `GEMINI_IMAGE_MODEL` | `gemini-2.0-flash-preview-image-generation` *(optional)* |
+   | `GEMINI_IMAGE_FALLBACK_MODELS` | `gemini-2.5-flash-image,imagen-4.0-generate-001` *(optional)* |
    | `GEMINI_FALLBACK_MODELS` | `gemini-1.5-flash` *(optional)* |
 4. Click **Deploy**. 🎉
 
@@ -131,6 +133,9 @@ Useful checks:
 /ask hello
 /imagine premium logo for my Telegram group
 /sticker cute desi chai cup smiling
+# or reply to any text with:
+/sticker
+/voice ye message voice note mein bhejo
 /summary
 /profile
 /wallet
