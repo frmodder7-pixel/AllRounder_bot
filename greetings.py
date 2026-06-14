@@ -99,6 +99,9 @@ async def on_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = template.replace("{name}", mention(member.id, member.first_name)).replace(
             "{group}", chat.title or "the group"
         )
+        rules = db.get_setting(chat.id, "rules")
+        if rules:
+            text += "\n\n📜 Type /rules to read the group rules."
         # Try to greet with their profile photo for a premium feel 📸
         photo = await _get_profile_photo(context, member.id)
         if photo:

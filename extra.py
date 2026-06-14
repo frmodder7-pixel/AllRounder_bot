@@ -1,6 +1,7 @@
 """Start screen, premium inline /help menu, optional AI brain, and
 owner-only tools (/stats, /broadcast)."""
 import asyncio
+import html
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatType
@@ -42,11 +43,14 @@ HELP_PAGES = {
             "• <code>/dice /dart /coin</code>\n"
             "• <code>/8ball question</code>\n"
             "• <code>/quiz</code> — trivia poll\n"
+            "• <code>/truth /dare /riddle /guess</code>\n"
+            "• <code>/wordchain /rapid /predict</code>\n"
             "<i>Plus auto festival wishes 🎊 (Diwali, Holi, Eid…)</i>"),
     "engage": ("🏆 Daily, Games & Ranks",
                "• <code>/leaderboard</code> (or /top) — all-time Top-10 🏆\n"
                "• <code>/today</code> — today's Top-5 🔥\n"
-               "• <code>/rank</code> — your points & rank 🎯\n"
+               "• <code>/rank</code>, <code>/profile</code> — points, level & rank 🎯\n"
+               "• <code>/wallet</code>, <code>/shop</code>, <code>/buy</code>, <code>/give</code> — coins 🪙\n"
                "• <code>/daily</code> — daily bonus + streak 🎁🔥\n"
                "• <code>/wordgame</code> — scramble game, +15 pts 🎮\n\n"
                "<i>Every message = 1 point!</i>\n"
@@ -62,6 +66,11 @@ HELP_PAGES = {
               "• <code>/id</code>, <code>/info</code>"),
     "ai": ("🧠 AI Brain",
            "Mention me or reply to my message and I'll answer intelligently.\n"
+           "• <code>/ask</code> — ask directly\n"
+           "• <code>/summary</code> — summarize recent group chat\n"
+           "• <code>/ai</code> — group AI settings\n"
+           "• <code>/aimod on</code> — admin-only smart moderation\n"
+           "• <code>/setrules</code>, <code>/rules</code>, <code>/faqadd</code>, <code>/faq</code>\n"
            f"<i>Status: {'✅ enabled' if config.GEMINI_API_KEY else '⚙️ owner can enable with a free key'}</i>"),
 }
 
@@ -125,6 +134,35 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🏓 Pong! I'm online and fast.")
 
 
+async def ai_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _owner_only(update):
+        await update.message.reply_text("⛔ Owner only.")
+        return
+    model = html.escape(config.GEMINI_MODEL)
+    if not ai.is_enabled():
+        await update.message.reply_html(
+            f"🧠 Gemini: <b>disabled</b>\n"
+            f"Model: <code>{model}</code>\n"
+            "Set <code>GEMINI_API_KEY</code> in Railway Variables or local <code>.env</code>."
+        )
+        return
+    await context.bot.send_chat_action(update.effective_chat.id, "typing")
+    answer = await ai.ask("Reply with exactly: Gemini OK", max_tokens=20, temperature=0.2)
+    if answer:
+        await update.message.reply_html(
+            f"🧠 Gemini: <b>OK</b>\n"
+            f"Model: <code>{html.escape(ai.active_model())}</code>\n"
+            f"Test reply: <code>{html.escape(answer[:120])}</code>"
+        )
+        return
+    error = html.escape(ai.last_error() or "unknown error")
+    await update.message.reply_html(
+        f"🧠 Gemini: <b>failing</b>\n"
+        f"Model: <code>{model}</code>\n"
+        f"Last error: <code>{error}</code>"
+    )
+
+
 # ---------------- AI brain (optional) ----------------
 async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ai.is_enabled():
@@ -132,17 +170,25 @@ async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     if not msg or not msg.text:
         return
+    is_private = update.effective_chat.type == ChatType.PRIVATE
+    mode = db.get_setting(update.effective_chat.id, "ai_mode", "mentions") if not is_private else "on"
+    if mode == "off" or (mode == "privateonly" and not is_private):
+        return
     me = context.bot.username
     mentioned = me and f"@{me}".lower() in msg.text.lower()
     replied_to_me = (msg.reply_to_message
                      and msg.reply_to_message.from_user
                      and msg.reply_to_message.from_user.id == context.bot.id)
-    is_private = update.effective_chat.type == ChatType.PRIVATE
-    if not (mentioned or replied_to_me or is_private):
+    if mode != "on" and not (mentioned or replied_to_me or is_private):
         return
 
     question = msg.text.replace(f"@{me}", "").strip() if me else msg.text
     if not question:
+        return
+    chat_key = f"listener:{update.effective_chat.id}"
+    user_key = f"listener:{update.effective_chat.id}:{update.effective_user.id}"
+    if not ai.allow_request(chat_key, 12, 60) or not ai.allow_request(user_key, 4, 60):
+        await msg.reply_text("⏳ AI limit reached for a moment. Try again shortly.")
         return
     await context.bot.send_chat_action(update.effective_chat.id, "typing")
     prompt = (
@@ -178,25 +224,39 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _owner_only(update):
         await update.message.reply_text("⛔ Owner only.")
         return
+    if context.args and context.args[0].lower() == "confirm":
+        pending = context.user_data.pop("broadcast_pending", None)
+        if not pending:
+            await update.message.reply_text("No pending broadcast. Reply to a message with /broadcast first.")
+            return
+        src_chat_id, src_message_id = pending
+        sent = failed = 0
+        for uid in db.all_user_ids():
+            try:
+                await context.bot.copy_message(uid, src_chat_id, src_message_id)
+                sent += 1
+                await asyncio.sleep(0.08)
+            except Exception:
+                failed += 1
+        await update.message.reply_html(f"📣 Broadcast done.\n✅ Sent: <b>{sent}</b>\n❌ Failed: <b>{failed}</b>")
+        return
     if not update.message.reply_to_message:
-        await update.message.reply_text("Reply to the message you want to broadcast.")
+        await update.message.reply_text("Reply to the message you want to broadcast, then send /broadcast.")
         return
     src = update.message.reply_to_message
-    sent = failed = 0
-    for uid in db.all_user_ids():
-        try:
-            await context.bot.copy_message(uid, src.chat_id, src.message_id)
-            sent += 1
-            await asyncio.sleep(0.05)  # gentle rate-limit
-        except Exception:
-            failed += 1
-    await update.message.reply_html(f"📣 Broadcast done.\n✅ Sent: <b>{sent}</b>\n❌ Failed: <b>{failed}</b>")
+    context.user_data["broadcast_pending"] = (src.chat_id, src.message_id)
+    count = len(db.all_user_ids())
+    await update.message.reply_html(
+        f"📣 Broadcast prepared for <b>{count}</b> users.\n"
+        "Send <code>/broadcast confirm</code> to send it."
+    )
 
 
 def register(app: Application):
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("aistatus", ai_status))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(CallbackQueryHandler(help_callback, pattern=r"^help:"))

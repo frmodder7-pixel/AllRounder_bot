@@ -28,6 +28,9 @@ def _home_kb():
          InlineKeyboardButton("👤 Users", callback_data="panel:users")],
         [InlineKeyboardButton("👥 Groups", callback_data="panel:groups"),
          InlineKeyboardButton("📣 Broadcast", callback_data="panel:bc")],
+        [InlineKeyboardButton("🧠 AI", callback_data="panel:ai"),
+         InlineKeyboardButton("📚 Rules & FAQ", callback_data="panel:knowledge")],
+        [InlineKeyboardButton("🛡️ Moderation", callback_data="panel:moderation")],
         [InlineKeyboardButton("🔄 Refresh", callback_data="panel:home"),
          InlineKeyboardButton("❌ Close", callback_data="panel:close")],
     ])
@@ -88,8 +91,43 @@ async def panel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📣 <b>Broadcast</b>\n\n"
             "To send a message to <b>all users</b>:\n"
             "1. Write or forward the message\n"
-            "2. <b>Reply</b> to it with <code>/broadcast</code>\n\n"
-            "I'll deliver it to everyone and report how many got it."
+            "2. <b>Reply</b> to it with <code>/broadcast</code>\n"
+            "3. Confirm with <code>/broadcast confirm</code>\n\n"
+            "The confirmation step helps avoid accidental mass messages."
+        )
+    elif action == "ai":
+        text = (
+            "🧠 <b>AI Controls</b>\n\n"
+            "Group admins can use:\n"
+            "• <code>/ai</code> — show AI settings\n"
+            "• <code>/ai on</code> — allow active group AI\n"
+            "• <code>/ai mentions</code> — reply only when mentioned/replied\n"
+            "• <code>/ai privateonly</code> — group AI quiet, private chat works\n"
+            "• <code>/ai off</code> — disable group AI\n"
+            "• <code>/aimod on</code> — conservative AI moderation"
+        )
+    elif action == "knowledge":
+        text = (
+            "📚 <b>Rules & FAQ</b>\n\n"
+            "Group admins can use:\n"
+            "• <code>/setrules no spam | respect everyone</code>\n"
+            "• <code>/rules</code>\n"
+            "• <code>/faqadd fees What are fees? | Fees are 500/month.</code>\n"
+            "• <code>/faq</code> or <code>/faq fees</code>\n"
+            "• <code>/faqauto on</code> or <code>/faqauto off</code>\n\n"
+            "FAQ auto-answer only replies from saved FAQs."
+        )
+    elif action == "moderation":
+        text = (
+            "🛡️ <b>Moderation</b>\n\n"
+            "Use these in the group:\n"
+            "• Reply + <code>/ban reason</code>\n"
+            "• Reply + <code>/mute 10m reason</code>\n"
+            "• Reply + <code>/warn reason</code>\n"
+            "• <code>/warnlist</code>\n"
+            "• <code>/antilink on</code> / <code>off</code>\n"
+            "• <code>/antiflood on</code> / <code>off</code>\n"
+            "• <code>/aimod on</code> / <code>off</code>"
         )
     else:
         text = PANEL_HOME

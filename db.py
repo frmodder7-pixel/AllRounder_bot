@@ -78,6 +78,9 @@ _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS points (chat_id BIGINT, user_id BIGINT, total INTEGER DEFAULT 0, name TEXT, PRIMARY KEY (chat_id, user_id))",
     "CREATE TABLE IF NOT EXISTS daily (chat_id BIGINT, user_id BIGINT, last_day TEXT, streak INTEGER DEFAULT 0, PRIMARY KEY (chat_id, user_id))",
     "CREATE TABLE IF NOT EXISTS weekly (chat_id BIGINT, user_id BIGINT, week TEXT, count INTEGER DEFAULT 0, name TEXT, PRIMARY KEY (chat_id, user_id, week))",
+    "CREATE TABLE IF NOT EXISTS faqs (chat_id BIGINT, name TEXT, question TEXT, answer TEXT, PRIMARY KEY (chat_id, name))",
+    "CREATE TABLE IF NOT EXISTS recent_messages (chat_id BIGINT, message_id BIGINT, user_id BIGINT, name TEXT, text TEXT, created_at INTEGER, PRIMARY KEY (chat_id, message_id))",
+    "CREATE TABLE IF NOT EXISTS wallets (chat_id BIGINT, user_id BIGINT, coins INTEGER DEFAULT 0, name TEXT, title TEXT, badge TEXT, PRIMARY KEY (chat_id, user_id))",
 ]
 
 
@@ -122,6 +125,13 @@ def get_warns(chat_id: int, user_id: int) -> int:
 
 def reset_warns(chat_id: int, user_id: int) -> None:
     _run("DELETE FROM warns WHERE chat_id=? AND user_id=?", (chat_id, user_id))
+
+
+def list_warns(chat_id: int, limit: int = 20):
+    return _run(
+        "SELECT user_id, count FROM warns WHERE chat_id=? AND count > 0 ORDER BY count DESC LIMIT ?",
+        (chat_id, limit), "all",
+    )
 
 
 # ---------- notes ----------
@@ -274,3 +284,116 @@ def my_rank(chat_id: int, user_id: int):
 def all_active_chats(day: str):
     rows = _run("SELECT DISTINCT chat_id FROM activity WHERE day=?", (day,), "all")
     return [r["chat_id"] for r in rows]
+
+
+# ---------- smart bot: rules / FAQ / recent messages ----------
+def save_faq(chat_id: int, name: str, question: str, answer: str) -> None:
+    _run(
+        "INSERT INTO faqs (chat_id, name, question, answer) VALUES (?,?,?,?) "
+        "ON CONFLICT (chat_id, name) DO UPDATE SET question=excluded.question, answer=excluded.answer",
+        (chat_id, name.lower(), question, answer),
+    )
+
+
+def get_faq(chat_id: int, name: str):
+    return _run(
+        "SELECT name, question, answer FROM faqs WHERE chat_id=? AND name=?",
+        (chat_id, name.lower()), "one",
+    )
+
+
+def list_faqs(chat_id: int):
+    return _run(
+        "SELECT name, question, answer FROM faqs WHERE chat_id=? ORDER BY name",
+        (chat_id,), "all",
+    )
+
+
+def del_faq(chat_id: int, name: str) -> None:
+    _run("DELETE FROM faqs WHERE chat_id=? AND name=?", (chat_id, name.lower()))
+
+
+def add_recent_message(chat_id: int, message_id: int, user_id: int, name: str, text: str, created_at: int) -> None:
+    _run(
+        "INSERT INTO recent_messages (chat_id, message_id, user_id, name, text, created_at) VALUES (?,?,?,?,?,?) "
+        "ON CONFLICT (chat_id, message_id) DO UPDATE SET text=excluded.text, created_at=excluded.created_at",
+        (chat_id, message_id, user_id, name, text[:1000], created_at),
+    )
+    rows = _run(
+        "SELECT message_id FROM recent_messages WHERE chat_id=? ORDER BY created_at DESC LIMIT 120",
+        (chat_id,), "all",
+    )
+    keep = [r["message_id"] for r in rows]
+    if keep:
+        placeholders = ",".join("?" for _ in keep)
+        _run(
+            f"DELETE FROM recent_messages WHERE chat_id=? AND message_id NOT IN ({placeholders})",
+            (chat_id, *keep),
+        )
+
+
+def recent_messages(chat_id: int, limit: int = 50):
+    return _run(
+        "SELECT user_id, name, text, created_at FROM recent_messages WHERE chat_id=? "
+        "ORDER BY created_at DESC LIMIT ?",
+        (chat_id, limit), "all",
+    )
+
+
+# ---------- economy ----------
+def ensure_wallet(chat_id: int, user_id: int, name: str) -> None:
+    _run(
+        "INSERT INTO wallets (chat_id, user_id, coins, name) VALUES (?,?,0,?) "
+        "ON CONFLICT (chat_id, user_id) DO UPDATE SET name=excluded.name",
+        (chat_id, user_id, name),
+    )
+
+
+def add_coins(chat_id: int, user_id: int, name: str, amount: int) -> int:
+    _run(
+        "INSERT INTO wallets (chat_id, user_id, coins, name) VALUES (?,?,?,?) "
+        "ON CONFLICT (chat_id, user_id) DO UPDATE SET coins=wallets.coins+?, name=excluded.name",
+        (chat_id, user_id, amount, name, amount),
+    )
+    row = _run("SELECT coins FROM wallets WHERE chat_id=? AND user_id=?", (chat_id, user_id), "one")
+    return row["coins"] if row else amount
+
+
+def spend_coins(chat_id: int, user_id: int, amount: int) -> bool:
+    row = _run("SELECT coins FROM wallets WHERE chat_id=? AND user_id=?", (chat_id, user_id), "one")
+    if not row or row["coins"] < amount:
+        return False
+    _run("UPDATE wallets SET coins=coins-? WHERE chat_id=? AND user_id=?", (amount, chat_id, user_id))
+    return True
+
+
+def get_wallet(chat_id: int, user_id: int):
+    row = _run(
+        "SELECT coins, title, badge FROM wallets WHERE chat_id=? AND user_id=?",
+        (chat_id, user_id), "one",
+    )
+    return row or {"coins": 0, "title": None, "badge": None}
+
+
+def set_wallet_item(chat_id: int, user_id: int, title: str = None, badge: str = None) -> None:
+    current = get_wallet(chat_id, user_id)
+    _run(
+        "UPDATE wallets SET title=?, badge=? WHERE chat_id=? AND user_id=?",
+        (title if title is not None else current.get("title"),
+         badge if badge is not None else current.get("badge"),
+         chat_id, user_id),
+    )
+
+
+def transfer_coins(chat_id: int, from_user_id: int, to_user_id: int, to_name: str, amount: int) -> bool:
+    if amount <= 0 or not spend_coins(chat_id, from_user_id, amount):
+        return False
+    add_coins(chat_id, to_user_id, to_name, amount)
+    return True
+
+
+def get_daily(chat_id: int, user_id: int):
+    return _run(
+        "SELECT last_day, streak FROM daily WHERE chat_id=? AND user_id=?",
+        (chat_id, user_id), "one",
+    )

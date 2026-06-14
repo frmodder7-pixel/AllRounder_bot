@@ -1,6 +1,6 @@
 """All Rounder Bot — by BLITEX
-Entry point: starts a tiny keep-alive web server (so Render's free web
-service stays happy) and runs the Telegram bot via long polling.
+Entry point: starts a tiny keep-alive web server (so hosted web services
+stay happy) and runs the Telegram bot via long polling.
 """
 import logging
 import threading
@@ -14,10 +14,12 @@ import db
 import admin
 import admin_panel
 import engagement
+import economy
 import extra
 import festivals
 import fun
 import greetings
+import smart
 import tools
 
 logging.basicConfig(
@@ -27,7 +29,7 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("allrounder")
 
-# ---------- keep-alive web server (for Render + UptimeRobot) ----------
+# ---------- keep-alive web server (for Railway/Render + UptimeRobot) ----------
 web = Flask(__name__)
 
 
@@ -46,10 +48,17 @@ async def _post_init(app: Application):
         BotCommand("start", "Start the bot"),
         BotCommand("help", "Show all commands"),
         BotCommand("admin", "Owner dashboard"),
+        BotCommand("aistatus", "Owner Gemini check"),
+        BotCommand("ask", "Ask the AI"),
+        BotCommand("summary", "Summarize recent group chat"),
+        BotCommand("ai", "Group AI settings"),
+        BotCommand("rules", "Show group rules"),
+        BotCommand("faq", "Show group FAQs"),
         BotCommand("ban", "Ban a user (admin)"),
         BotCommand("kick", "Kick a user (admin)"),
         BotCommand("mute", "Mute a user (admin)"),
         BotCommand("warn", "Warn a user (admin)"),
+        BotCommand("warnlist", "List warned users"),
         BotCommand("joke", "Hinglish joke 😂"),
         BotCommand("shayari", "Desi shayari 🌹"),
         BotCommand("roast", "Playful roast 🔥"),
@@ -58,8 +67,15 @@ async def _post_init(app: Application):
         BotCommand("score", "Match by team 🔍"),
         BotCommand("leaderboard", "Group Top-10 🏆"),
         BotCommand("rank", "Your rank & points 🎯"),
+        BotCommand("profile", "Your level profile"),
+        BotCommand("wallet", "Your coins wallet"),
         BotCommand("daily", "Claim daily bonus 🎁"),
         BotCommand("wordgame", "Word scramble game 🎮"),
+        BotCommand("riddle", "Start a riddle"),
+        BotCommand("guess", "Guess number game"),
+        BotCommand("wordchain", "Start word chain"),
+        BotCommand("rapid", "Rapid quiz"),
+        BotCommand("predict", "Fun prediction"),
         BotCommand("meme", "Random meme"),
         BotCommand("quote", "Inspiring quote"),
         BotCommand("quiz", "Trivia quiz"),
@@ -95,6 +111,8 @@ def main():
     admin.register(application)
     tools.register(application)
     fun.register(application)
+    smart.register(application)
+    economy.register(application)
     greetings.register(application)
     festivals.register(application)
     engagement.register(application)

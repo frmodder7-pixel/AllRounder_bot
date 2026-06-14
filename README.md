@@ -1,8 +1,8 @@
 # 🤖 All Rounder Bot — *by BLITEX*
 
-A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and an optional AI brain. Free to run on **Render**, code lives on **GitHub**.
+A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and an optional AI brain. Deploy from **GitHub** to **Railway** or Render.
 
-> ✅ **Safe for your account.** This is a normal bot created through **@BotFather** — it has its *own* identity and can **never** freeze or affect your personal Telegram account. (We never use risky "userbot" logins.)
+> ✅ **Safe for your account.** This is a normal bot created through **@BotFather** — it has its *own* identity and does not log in as your personal Telegram account. Keep tokens private and avoid spammy broadcasts so Telegram does not restrict the bot.
 
 ---
 
@@ -27,12 +27,18 @@ A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and 
 - `/calc`, `/define`, `/tr en text`, `/weather city`, `/time`, `/id`, `/info`
 
 **🧠 AI Brain** (optional) — mention the bot or reply to it for smart answers.
+- `/ask`, `/summary`, `/ai on|mentions|privateonly|off`, `/aimod on|off`
+- `/setrules`, `/rules`, `/faqadd`, `/faq`, `/faqauto`
+
+**🪙 Profiles & Economy**
+- `/profile`, `/wallet`, `/shop`, `/buy`, `/give`
+- Extra games: `/truth`, `/dare`, `/riddle`, `/answer`, `/guess`, `/guessnum`, `/wordchain`, `/chain`, `/rapid`, `/predict`
 
 **👑 Owner tools** — `/stats`, `/broadcast` (reply to a message).
 
 ---
 
-## 🚀 Deploy in ~10 minutes (100% free)
+## 🚀 Deploy With GitHub + Railway
 
 ### 1. Create the bot
 1. In Telegram, open **@BotFather** → send `/newbot`
@@ -43,7 +49,40 @@ A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and 
 1. Create a new repo on https://github.com (e.g. `allrounder-bot`)
 2. Upload all these files (drag-and-drop works), **except** never upload a real `.env`.
 
-### 3. Deploy on Render
+### 3. Deploy on Railway
+1. Go to https://railway.com → **New Project → Deploy from GitHub repo**
+2. Pick your `allrounder-bot` repo.
+3. Railway should detect Python. If it asks for a start command, use:
+   ```bash
+   python bot.py
+   ```
+4. Open the Railway service → **Variables** and add:
+   | Key | Value |
+   |-----|-------|
+   | `BOT_TOKEN` | *(from BotFather)* |
+   | `OWNER_ID` | *(your numeric id — send `/id` to the bot)* |
+   | `GEMINI_API_KEY` | *(optional, from https://aistudio.google.com/app/apikey)* |
+   | `GEMINI_MODEL` | `gemini-2.5-flash` *(optional)* |
+   | `GEMINI_FALLBACK_MODELS` | `gemini-1.5-flash` *(optional)* |
+   | `WARN_LIMIT` | `3` |
+5. Review and deploy the staged variable changes, then restart or redeploy the service.
+
+### 4. Test Gemini
+After deployment, send `/aistatus` to the bot from your owner account.
+
+- `Gemini: OK` means the AI brain is working.
+- `disabled` means `GEMINI_API_KEY` is missing in Railway Variables.
+- `failing` means the command will show a safe error like bad key, quota, or model access. It will not print your API key.
+
+### 5. Recommended Railway Database
+For permanent points, warns, FAQs, rules, wallets and message summaries:
+1. In Railway, add a **Postgres** database to the same project.
+2. In your bot service variables, set `DATABASE_URL` to the Postgres connection URL.
+3. Redeploy the bot service.
+
+Without `DATABASE_URL`, the bot uses SQLite on the Railway container and data can reset after redeploys.
+
+### Optional: Deploy on Render
 1. Go to https://render.com → **New → Web Service** → connect your GitHub repo
 2. Settings:
    - **Build command:** `pip install -r requirements.txt`
@@ -55,17 +94,41 @@ A premium, all-in-one Telegram group bot: greetings, moderation, fun, tools and 
    | `BOT_TOKEN` | *(from BotFather)* |
    | `OWNER_ID` | *(your numeric id — send `/id` to the bot)* |
    | `GEMINI_API_KEY` | *(optional, from https://aistudio.google.com/app/apikey)* |
+   | `GEMINI_MODEL` | `gemini-2.5-flash` *(optional)* |
+   | `GEMINI_FALLBACK_MODELS` | `gemini-1.5-flash` *(optional)* |
 4. Click **Deploy**. 🎉
 
-### 4. Keep it awake (so it stays fast)
-Render's free service sleeps after 15 min idle. Fix it free:
-1. Copy your Render URL (e.g. `https://allrounder-bot.onrender.com`)
+### Keep it awake
+Free hosts may sleep after idle time. To keep the bot warm:
+1. Copy your Railway public URL.
 2. Go to https://uptimerobot.com → add an **HTTP(s) monitor** to that URL, every 5 min.
 
 Done — your bot is online 24/7. ✅
 
-### 5. Add to your group
+### 6. Add To Your Group
 Open the bot → tap **"➕ Add me to your group"**, then make it **admin** so it can welcome members and moderate.
+
+### 7. First Setup Commands
+Run these in your group after deployment:
+
+```text
+/setrules no spam | respect everyone | no scam links
+/faqadd fees What are the fees? | Fees are 500 per month.
+/faqauto on
+/ai mentions
+/aimod off
+```
+
+Useful checks:
+
+```text
+/aistatus
+/ask hello
+/summary
+/profile
+/wallet
+/admin
+```
 
 ---
 
@@ -75,6 +138,9 @@ pip install -r requirements.txt
 # Windows PowerShell:
 $env:BOT_TOKEN="your-token"; $env:OWNER_ID="your-id"; python bot.py
 ```
+
+You can also copy `.env.example` to `.env` for local testing. Run `/aistatus`
+as the owner to verify that Gemini can answer without exposing your API key.
 
 ## 🛠️ Customize
 - Branding: edit `config.py` (`BRAND`, `TAG`).

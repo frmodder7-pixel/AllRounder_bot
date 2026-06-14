@@ -271,15 +271,20 @@ async def activity_counter(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     db.bump_activity(chat.id, user.id, _today_str(), user.first_name)
     db.bump_weekly(chat.id, user.id, _week_str(), user.first_name)
+    db.ensure_wallet(chat.id, user.id, user.first_name)
+    if random.random() < 0.12:
+        db.add_coins(chat.id, user.id, user.first_name, 1)
 
     # Word-game winner check
     answer = _active_games.get(chat.id)
     if answer and msg.text and msg.text.strip().lower() == answer:
         _active_games.pop(chat.id, None)
         total = db.add_points(chat.id, user.id, user.first_name, 15)
+        coins = db.add_coins(chat.id, user.id, user.first_name, 8)
         await msg.reply_html(
             f"🎉 Correct! {mention(user.id, user.first_name)} solved <b>{answer.upper()}</b> first!\n"
-            f"➕ <b>15 points</b> (total: <b>{total}</b>) 🏆"
+            f"➕ <b>15 points</b> (total: <b>{total}</b>) 🏆\n"
+            f"🪙 <b>8 coins</b> (wallet: <b>{coins}</b>)"
         )
 
 
@@ -310,9 +315,11 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Reward grows with streak: 10 base + 5 per streak day, capped.
     reward = min(10 + streak * 5, 100)
     total = db.add_points(chat.id, user.id, user.first_name, reward)
+    coins = db.add_coins(chat.id, user.id, user.first_name, max(5, reward // 2))
     await update.message.reply_html(
         f"🎁 {mention(user.id, user.first_name)} claimed the daily bonus!\n"
         f"➕ <b>{reward} points</b> (total: <b>{total}</b>)\n"
+        f"🪙 Coins: <b>{coins}</b>\n"
         f"🔥 Streak: <b>{streak} days</b> {_streak_emoji(streak)}\n"
         f"<i>Come back daily to grow your streak and earn more!</i>"
     )

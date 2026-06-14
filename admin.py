@@ -161,6 +161,18 @@ async def resetwarns(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_html(f"✅ Cleared warns for {mention(uid, name)}.")
 
 
+@admin_only
+async def warnlist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rows = db.list_warns(update.effective_chat.id, limit=20)
+    if not rows:
+        await update.message.reply_text("✅ No active warns in this group.")
+        return
+    lines = ["⚠️ <b>Warn List</b>\n"]
+    for row in rows:
+        lines.append(f"• <code>{row['user_id']}</code> — <b>{row['count']}</b> warns")
+    await update.message.reply_html("\n".join(lines))
+
+
 # ============ MESSAGE TOOLS ============
 @admin_only
 async def pin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -299,7 +311,7 @@ def register(app: Application):
     cmds = {
         "ban": ban, "unban": unban, "kick": kick,
         "mute": mute, "unmute": unmute,
-        "warn": warn, "warns": warns, "resetwarns": resetwarns,
+        "warn": warn, "warns": warns, "warnlist": warnlist, "resetwarns": resetwarns,
         "pin": pin, "unpin": unpin, "del": delete, "purge": purge,
         "antilink": antilink, "antiflood": antiflood,
     }
