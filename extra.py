@@ -67,6 +67,10 @@ HELP_PAGES = {
     "ai": ("🧠 AI Brain",
            "Mention me or reply to my message and I'll answer intelligently.\n"
            "• <code>/ask</code> — ask directly\n"
+           "• <code>/imagine</code>, <code>/editimage</code> — generate/edit AI images\n"
+           "• <code>/sticker</code> — generate sticker-style WebP\n"
+           "• <code>/caption /bio /rewrite</code> — premium writing tools\n"
+           "• <code>/announce /pollidea /logoidea /stickeridea</code>\n"
            "• <code>/summary</code> — summarize recent group chat\n"
            "• <code>/ai</code> — group AI settings\n"
            "• <code>/aimod on</code> — admin-only smart moderation\n"
@@ -179,7 +183,7 @@ async def ai_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
     replied_to_me = (msg.reply_to_message
                      and msg.reply_to_message.from_user
                      and msg.reply_to_message.from_user.id == context.bot.id)
-    if mode != "on" and not (mentioned or replied_to_me or is_private):
+    if mode != "chatty" and not (mentioned or replied_to_me or is_private):
         return
 
     question = msg.text.replace(f"@{me}", "").strip() if me else msg.text

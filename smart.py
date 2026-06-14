@@ -91,22 +91,25 @@ async def ai_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         state = _setting(update.effective_chat.id, "ai_mode", "mentions")
         mod = _setting(update.effective_chat.id, "ai_moderation", "off")
-        faq = _setting(update.effective_chat.id, "faq_auto", "on")
+        faq = _setting(update.effective_chat.id, "faq_auto", "off")
         await update.message.reply_html(
             f"🧠 <b>AI settings</b>\n"
             f"Replies: <code>{state}</code>\n"
             f"AI moderation: <code>{mod}</code>\n"
             f"FAQ auto-answer: <code>{faq}</code>\n\n"
-            "Admins: <code>/ai on</code>, <code>/ai mentions</code>, <code>/ai privateonly</code>, <code>/ai off</code>"
+            "Admins: <code>/ai on</code>, <code>/ai mentions</code>, <code>/ai privateonly</code>, <code>/ai off</code>\n"
+            "Use <code>/ai chatty</code> only if you want replies to every group message."
         )
         return
     if not await is_admin(context, update.effective_chat.id, update.effective_user.id):
         await update.message.reply_text("⛔ Only group admins can change AI settings.")
         return
     mode = context.args[0].lower()
-    if mode not in ("on", "mentions", "privateonly", "off"):
-        await update.message.reply_text("Use: /ai on | mentions | privateonly | off")
+    if mode not in ("on", "mentions", "privateonly", "off", "chatty"):
+        await update.message.reply_text("Use: /ai on | mentions | privateonly | off | chatty")
         return
+    if mode == "on":
+        mode = "mentions"
     db.set_setting(update.effective_chat.id, "ai_mode", mode)
     await update.message.reply_html(f"🧠 AI replies set to <code>{mode}</code>.")
 
@@ -195,7 +198,7 @@ async def faq_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def faq_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args or context.args[0].lower() not in ("on", "off"):
-        cur = _setting(update.effective_chat.id, "faq_auto", "on")
+        cur = _setting(update.effective_chat.id, "faq_auto", "off")
         await update.message.reply_html(f"FAQ auto-answer is <code>{cur}</code>. Use <code>/faqauto on</code> or <code>/faqauto off</code>.")
         return
     db.set_setting(update.effective_chat.id, "faq_auto", context.args[0].lower())
@@ -240,7 +243,7 @@ async def smart_listener(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     db.add_recent_message(chat.id, msg.message_id, user.id, user.first_name, text, int(time.time()))
 
-    if _setting(chat.id, "faq_auto", "on") == "on":
+    if _setting(chat.id, "faq_auto", "off") == "on":
         await _maybe_answer_faq(update)
 
 

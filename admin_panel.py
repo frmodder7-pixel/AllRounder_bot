@@ -100,10 +100,11 @@ async def panel_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🧠 <b>AI Controls</b>\n\n"
             "Group admins can use:\n"
             "• <code>/ai</code> — show AI settings\n"
-            "• <code>/ai on</code> — allow active group AI\n"
+            "• <code>/ai on</code> — enable mention/reply AI\n"
             "• <code>/ai mentions</code> — reply only when mentioned/replied\n"
             "• <code>/ai privateonly</code> — group AI quiet, private chat works\n"
             "• <code>/ai off</code> — disable group AI\n"
+            "• <code>/ai chatty</code> — reply to every group message\n"
             "• <code>/aimod on</code> — conservative AI moderation"
         )
     elif action == "knowledge":

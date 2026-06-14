@@ -124,9 +124,8 @@ async def _get_json(url):
 
 
 async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # If AI is available, generate a FRESH, unique Hinglish joke (~60% of the time)
-    # — unlimited variety, never repeats. Otherwise use the big built-in list.
-    if ai.is_enabled() and random.random() < 0.6:
+    # If AI is available, generate a fresh Hinglish joke. Fallback stays built in.
+    if ai.is_enabled():
         await context.bot.send_chat_action(update.effective_chat.id, "typing")
         prompt = (
             f"Write {random.choice(JOKE_TYPES)} in Hinglish (Hindi written in English letters, "
@@ -141,7 +140,7 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def shayari(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if ai.is_enabled() and random.random() < 0.6:
+    if ai.is_enabled():
         await context.bot.send_chat_action(update.effective_chat.id, "typing")
         prompt = (
             "Write a short, original 2-line desi shayari in Hinglish (Hindi in English letters). "

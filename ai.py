@@ -4,6 +4,7 @@ can fall back to built-in content."""
 import logging
 import time
 from collections import defaultdict, deque
+from base64 import b64decode, b64encode
 from typing import Optional
 from urllib.parse import quote
 
@@ -66,6 +67,10 @@ def _candidate_models() -> list[str]:
     models.extend(_clean_model(model) for model in config.GEMINI_FALLBACK_MODELS)
     seen = set()
     return [model for model in models if model and not (model in seen or seen.add(model))]
+
+
+def _image_model_name() -> str:
+    return _clean_model(config.GEMINI_IMAGE_MODEL)
 
 
 def _url(model: str) -> str:
@@ -142,4 +147,99 @@ async def ask(prompt: str, max_tokens: int = 400, temperature: float = 0.9):
                 _remember_error(type(exc).__name__)
                 log.exception("Gemini request failed unexpectedly: model=%s", model)
                 return None
+    return None
+
+
+def _extract_image(data: dict) -> Optional[tuple[bytes, str]]:
+    for candidate in data.get("candidates", []):
+        content = candidate.get("content") or {}
+        for part in content.get("parts") or []:
+            inline = part.get("inlineData") or part.get("inline_data")
+            if not inline:
+                continue
+            raw = inline.get("data")
+            mime_type = inline.get("mimeType") or inline.get("mime_type") or "image/png"
+            if raw:
+                return b64decode(raw), mime_type
+    return None
+
+
+async def generate_image(prompt: str) -> Optional[tuple[bytes, str]]:
+    """Generate an image with Gemini and return (bytes, mime_type), or None."""
+    if not config.GEMINI_API_KEY:
+        _remember_error("GEMINI_API_KEY is not set")
+        return None
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.GEMINI_API_KEY,
+    }
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+    }
+    model = _image_model_name()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
+            r = await c.post(_url(model), headers=headers, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        image = _extract_image(data)
+        if image:
+            _remember_error("")
+            return image
+        _remember_error("image response had no image data")
+        log.warning("Gemini image request returned no image: model=%s", model)
+    except httpx.HTTPStatusError as exc:
+        error = f"HTTP {exc.response.status_code}: {_api_error(exc.response)}"
+        _remember_error(error)
+        log.warning("Gemini image request failed: model=%s %s", model, error)
+    except httpx.TimeoutException:
+        _remember_error("image request timed out")
+        log.warning("Gemini image request timed out: model=%s", model)
+    except Exception as exc:
+        _remember_error(type(exc).__name__)
+        log.exception("Gemini image request failed unexpectedly: model=%s", model)
+    return None
+
+
+async def edit_image(prompt: str, image_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[tuple[bytes, str]]:
+    """Edit/restyle an image with Gemini and return (bytes, mime_type), or None."""
+    if not config.GEMINI_API_KEY:
+        _remember_error("GEMINI_API_KEY is not set")
+        return None
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.GEMINI_API_KEY,
+    }
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inlineData": {"mimeType": mime_type, "data": b64encode(image_bytes).decode("ascii")}},
+            ]
+        }],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+    }
+    model = _image_model_name()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as c:
+            r = await c.post(_url(model), headers=headers, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        image = _extract_image(data)
+        if image:
+            _remember_error("")
+            return image
+        _remember_error("edited image response had no image data")
+        log.warning("Gemini image edit returned no image: model=%s", model)
+    except httpx.HTTPStatusError as exc:
+        error = f"HTTP {exc.response.status_code}: {_api_error(exc.response)}"
+        _remember_error(error)
+        log.warning("Gemini image edit failed: model=%s %s", model, error)
+    except httpx.TimeoutException:
+        _remember_error("image edit request timed out")
+        log.warning("Gemini image edit timed out: model=%s", model)
+    except Exception as exc:
+        _remember_error(type(exc).__name__)
+        log.exception("Gemini image edit failed unexpectedly: model=%s", model)
     return None

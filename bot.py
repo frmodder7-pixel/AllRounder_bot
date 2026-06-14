@@ -19,6 +19,7 @@ import extra
 import festivals
 import fun
 import greetings
+import premium_ai
 import smart
 import tools
 
@@ -50,6 +51,10 @@ async def _post_init(app: Application):
         BotCommand("admin", "Owner dashboard"),
         BotCommand("aistatus", "Owner Gemini check"),
         BotCommand("ask", "Ask the AI"),
+        BotCommand("imagine", "Generate an AI image"),
+        BotCommand("sticker", "Generate AI sticker"),
+        BotCommand("caption", "AI captions"),
+        BotCommand("rewrite", "Rewrite with AI"),
         BotCommand("summary", "Summarize recent group chat"),
         BotCommand("ai", "Group AI settings"),
         BotCommand("rules", "Show group rules"),
@@ -112,6 +117,7 @@ def main():
     tools.register(application)
     fun.register(application)
     smart.register(application)
+    premium_ai.register(application)
     economy.register(application)
     greetings.register(application)
     festivals.register(application)

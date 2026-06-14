@@ -45,6 +45,7 @@ OWNER_ID = _int("OWNER_ID")
 # If set, the bot gains an AI brain (mention it or reply to it).
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image-preview").strip() or "gemini-2.5-flash-image-preview"
 GEMINI_FALLBACK_MODELS = [
     model.strip()
     for model in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-1.5-flash").split(",")
